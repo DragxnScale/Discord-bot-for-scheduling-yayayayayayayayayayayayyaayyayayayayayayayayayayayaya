@@ -48,10 +48,8 @@ async def add_block(interaction: discord.Interaction, title: str, start_date: st
         if user_id in user_timezones:
             time_zone = user_timezones[user_id]
         else:
-            await interaction.response.send_message("Please set your timezone with /timezone or specify it it the timezone parameter", ephemeral = True )
+            await interaction.response.send_message("Please set your timezone with /time_zone or specify it it the timezone parameter", ephemeral = True )
             return
-    
-
     
     try:
         user_zone = ZoneInfo(time_zone)
@@ -84,11 +82,58 @@ async def add_block(interaction: discord.Interaction, title: str, start_date: st
     user_timezones[user_id] = time_zone
     await interaction.response.send_message(f"Success! Block has been created at {start} with id {current_block_id}.", ephemeral = True )
 
-    
-        
-
-    
+@bot.tree.command(name = "timezone", description = "changes timezone")
+async def time_zone(interaction: discord.Interaction, time_zone: str):
+    user_id = interaction.user.id
+    try:
+        ZoneInfo(time_zone)
+    except ZoneInfoNotFoundError:
+        await interaction.response.send_message("Invalid timezone. Use a name like America/Los_Angeles.", ephemeral = True)
+        return
+    user_timezones[user_id] = time_zone
+    await interaction.response.send_message(f"Your timezone has been set to {time_zone}", ephemeral = True)
+     
 GUILD_ID = discord.Object(id = 1394189698884436011)
+
+
+@bot.tree.command(name="remove_block", description="Removes a scheduled block")
+async def remove_block(interaction: discord.Interaction, block_id: int):
+    user_id = interaction.user.id
+
+    if user_id in schedules and block_id in schedules[user_id]: 
+        schedules[user_id].pop(block_id)
+        await interaction.response.send_message(f"Block {block_id} has been removed successfully", ephemeral = True)
+    elif user_id not in schedules:
+        await interaction.response.send_message(f"No current blocks", ephemeral = True )
+    elif block_id not in schedules[user_id]:
+        await interaction.response.send_message(f'Block "{block_id}" not in your schedule', ephemeral = True )
+    else:
+        print("wtf happend")
+
+
+@bot.tree.command(name="upcoming", description="shows next block")
+async def upcoming(interaction: discord.Interaction):
+    user_id = interaction.user.id
+    current_time = datetime.now(timezone.utc)
+    next_block = None
+    next_block_id = None
+    if user_id in schedules and schedules[user_id]:
+        for block_id, block in schedules[user_id].items():
+            if block["start"] > current_time and (next_block is None or block["start"] < next_block["start"]):
+                next_block = block
+                next_block_id = block_id
+        
+        if next_block == None:
+            await interaction.response.send_message("All blocks have passed", ephemeral = True )
+
+        else:
+            time_diff = next_block["start"] - current_time
+            await interaction.response.send_message(f"Block #{next_block_id}: {next_block["title"]} is in {time_diff.total_seconds()/60} minutes", ephemeral = True )
+
+    else:
+        await interaction.response.send_message("No upcoming blocks", ephemeral = True )
+
+
 
 
 bot.run(token, log_handler = handler, log_level = logging.DEBUG)
